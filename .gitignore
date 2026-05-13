@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment files (NEVER commit secrets)
+backend/.env
+.env
+.env.local
+.env.production
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Uploads (user files — ephemeral)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Database caches
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/

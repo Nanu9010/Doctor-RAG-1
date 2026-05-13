@@ -1,0 +1,18 @@
+# Root-level requirements.txt — used by Vercel Python runtime
+# This is identical to backend/requirements.txt but at project root
+# so Vercel can find it for the api/ serverless function
+
+flask==3.0.3
+flask-cors==4.0.1
+PyMySQL==1.1.1
+cryptography==42.0.8
+bcrypt==4.1.3
+PyMuPDF==1.24.5
+pytesseract==0.3.10
+Pillow==10.3.0
+sentence-transformers==3.0.1
+pinecone-client==4.1.0
+openai==1.35.7
+python-dotenv==1.0.1
+gunicorn==22.0.0
+numpy>=1.24.0

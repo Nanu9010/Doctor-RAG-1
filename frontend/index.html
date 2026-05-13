@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedRAG - Clinical Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/clinical.css">
+  <style>
+    /* ── Auth & Toast Overrides (Not in clinical.css) ────────────────── */
+    #authOverlay {
+      position: fixed; inset: 0; background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .auth-card {
+      background: var(--bg-main); border-radius: var(--radius); padding: 36px 40px; width: 420px; box-shadow: var(--shadow);
+    }
+    .auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+    .auth-logo-icon { width: 40px; height: 40px; background: var(--accent-blue); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+    .auth-logo-icon svg { width: 22px; height: 22px; fill: #fff; }
+    .auth-logo-text { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+    .auth-logo-text span { color: var(--accent-blue); }
+    .auth-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; color: var(--text-primary); }
+    .auth-sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; }
+    .auth-tabs { display: flex; border: 1px solid var(--border-color); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; }
+    .auth-tab { flex: 1; padding: 10px; font-family: 'Inter'; font-size: 14px; font-weight: 500; border: none; background: transparent; cursor: pointer; color: var(--text-secondary); }
+    .auth-tab.active { background: var(--accent-light-blue); color: var(--accent-blue); }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-primary); }
+    .form-input { width: 100%; font-family: 'Inter'; font-size: 14px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius); outline: none; }
+    .form-input:focus { border-color: var(--accent-blue); }
+    .auth-error { background: var(--conf-low-bg); color: var(--conf-low-text); font-size: 13px; padding: 10px 12px; border-radius: var(--radius); margin-bottom: 16px; display: none; }
+    .auth-error.visible { display: block; }
+    .btn-auth { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; }
+
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--text-primary); color: #fff; padding: 12px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 500; box-shadow: var(--shadow); transform: translateY(20px); opacity: 0; transition: opacity .25s, transform .25s; z-index: 9999; max-width: 320px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.error { background: #DC2626; }
+    #toast.success { background: #059669; }
+
+    /* History & Top bar additions */
+    .history-list-view { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+    .history-card { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: 0.2s; }
+    .history-card:hover { border-color: var(--accent-blue); box-shadow: var(--shadow); }
+    .history-title { font-weight: 600; margin-bottom: 4px; font-size: 15px; }
+    .history-meta { font-size: 12px; color: var(--text-secondary); }
+    
+    .top-actions { display: flex; gap: 8px; align-items: center; }
+    .action-icon-btn { background: transparent; border: 1px solid var(--border-color); padding: 6px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; }
+    .action-icon-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .action-icon-btn.danger:hover { background: var(--conf-low-bg); color: var(--conf-low-text); border-color: var(--conf-low-bg); }
+    .doc-status-badge { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px; text-transform: uppercase; margin-left: 8px; display: inline-block; }
+    .badge-ready { background: var(--conf-high-bg); color: var(--conf-high-text); }
+    .badge-processing { background: var(--conf-med-bg); color: var(--conf-med-text); }
+    .badge-failed { background: var(--conf-low-bg); color: var(--conf-low-text); }
+    
+    .logout-btn { background: none; border: none; font-size: 12px; color: var(--text-secondary); cursor: pointer; text-decoration: underline; margin-top: 4px; display: block; }
+    .logout-btn:hover { color: var(--conf-low-text); }
+    
+    .upload-progress { margin-top: 8px; font-size: 13px; color: var(--accent-blue); font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Auth Overlay ──────────────────────────────────────────────────────── -->
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+      </div>
+      <span class="auth-logo-text">Med<span>RAG</span></span>
+    </div>
+    <div class="auth-title">Clinical Document Assistant</div>
+    <div class="auth-sub">Sign in to query your medical documents securely.</div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="authError" class="auth-error"></div>
+
+    <!-- Login Form -->
+    <div id="loginForm">
+      <div class="form-group">
+        <label class="form-label" for="loginEmail">Email</label>
+        <input class="form-input" type="email" id="loginEmail" placeholder="doctor@hospital.org" autocomplete="email" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="loginPassword">Password</label>
+        <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="btn btn-primary btn-auth" onclick="login()">Sign In</button>
+    </div>
+
+    <!-- Register Form -->
+    <div id="registerForm" style="display:none">
+      <div class="form-group">
+        <label class="form-label" for="regName">Full Name</label>
+        <input class="form-input" type="text" id="regName" placeholder="Dr. Jane Smith" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="regEmail">Email</label>
+        <input class="form-input" type="email" id="regEmail" placeholder="doctor@hospital.org" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="regPassword">Password</label>
+        <input class="form-input" type="password" id="regPassword" placeholder="Min. 8 characters" />
+      </div>
+      <button class="btn btn-primary btn-auth" onclick="register()">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main App ─────────────────────────────────────────────────────────── -->
+<div class="app-container" id="app" style="display:none">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">Med<span>RAG</span></div>
+        </div>
+        <div class="user-profile">
+            <div class="avatar" id="userAvatar">DR</div>
+            <div class="user-info">
+                <div class="user-name" id="userNameDisplay">Doctor</div>
+                <div class="user-specialty">Clinical Practitioner</div>
+                <button class="logout-btn" onclick="logout()">Sign Out</button>
+            </div>
+        </div>
+        <nav class="nav-menu">
+            <a href="#" class="nav-item active" data-target="view-ask">Ask AI</a>
+            <a href="#" class="nav-item" data-target="view-history">Query History</a>
+            <a href="#" class="nav-item" data-target="view-documents">Documents</a>
+            <a href="#" class="nav-item" data-target="view-analytics">Analytics</a>
+        </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- TOP BAR -->
+        <header class="top-bar">
+            <div class="dropdowns">
+                <select class="clinical-select" id="docSelect" onchange="onDocChange()">
+                    <option value="">— Select document —</option>
+                </select>
+                
+                <div class="top-actions" id="docActions" style="display:none;">
+                    <span id="docStatusBadge" class="doc-status-badge"></span>
+                    <button class="action-icon-btn" onclick="renameDocument()" title="Rename">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="action-icon-btn danger" onclick="deleteDocument()" title="Delete">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <div>
+                <div id="uploadStatusText" class="upload-progress" style="display:none;">
+                    <div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Uploading...
+                </div>
+                <input type="file" id="fileInput" accept=".pdf" style="display:none" onchange="onFileSelected(event)">
+                <button class="btn btn-secondary" id="uploadBtn" onclick="document.getElementById('fileInput').click()">+ Upload PDF</button>
+            </div>
+        </header>
+
+        <!-- VIEWS -->
+        <!-- Ask AI -->
+        <div id="view-ask" class="view active">
+            <div class="query-container">
+                <h1 class="page-title">Clinical AI Assistant</h1>
+                
+                <div class="query-box">
+                    <textarea id="clinicalQuery" placeholder="Ask a clinical question based on the selected document..." onkeydown="onQueryKeydown(event)"></textarea>
+                    <div class="query-footer">
+                        <button class="btn btn-primary" id="askBtn" onclick="submitQuery()" disabled>Ask AI</button>
+                    </div>
+                </div>
+                
+                <div class="suggestions">
+                    <span class="suggestion-chip" onclick="setQuery('What are the indications?')">What are the indications?</span>
+                    <span class="suggestion-chip" onclick="setQuery('List all contraindications')">List all contraindications</span>
+                    <span class="suggestion-chip" onclick="setQuery('What is the recommended dosage?')">What is the recommended dosage?</span>
+                </div>
+
+                <div id="loadingState" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Processing clinical query...</p>
+                </div>
+
+                <div id="answerCard" class="answer-card hidden">
+                    <div class="answer-header">
+                        <h3 id="answerQueryTitle">Clinical Response</h3>
+                        <span class="confidence-badge" id="confidenceBadge"></span>
+                    </div>
+                    <div class="answer-body" id="answerText"></div>
+                    <div class="answer-sources">
+                        <h4>Sources</h4>
+                        <div class="source-list" id="sourceList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Query History -->
+        <div id="view-history" class="view hidden">
+            <h1 class="page-title">Query History</h1>
+            <div id="historyListView" class="history-list-view">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Documents -->
+        <div id="view-documents" class="view hidden">
+            <h1 class="page-title">Clinical Documents</h1>
+            <div id="docGrid" class="document-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Analytics -->
+        <div id="view-analytics" class="view hidden">
+            <h1 class="page-title">Clinical Analytics</h1>
+            <div class="analytics-grid" id="analyticsGrid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── Config ───────────────────────────────────────────────────────────────────
+// Auto-detect API: use relative path in production (Vercel), localhost in dev
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://127.0.0.1:5000'
+  : '';  // relative path — works when frontend & backend share same domain
+console.log('API Endpoint detected as:', API || '(same-origin)');
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let authToken  = localStorage.getItem('medrag_token')  || null;
+let currentUser = JSON.parse(localStorage.getItem('medrag_user') || 'null');
+let documents  = [];
+let selectedDoc = null;
+let currentSessionId = null;
+let pollingTimer = null;
+let chatHistory = [];
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+(async function init() {
+  if (authToken && currentUser) {
+    showApp();
+    await Promise.all([loadDocuments(), loadHistory()]);
+  }
+})();
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+        
+        const targetId = item.getAttribute('data-target');
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.getElementById(targetId).classList.remove('hidden');
+    });
+});
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((el, i) =>
+    el.classList.toggle('active', (i === 0) === (tab === 'login'))
+  );
+  document.getElementById('loginForm').style.display    = tab === 'login'    ? '' : 'none';
+  document.getElementById('registerForm').style.display = tab === 'register' ? '' : 'none';
+  clearAuthError();
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function clearAuthError() {
+  const el = document.getElementById('authError');
+  el.textContent = '';
+  el.classList.remove('visible');
+}
+
+async function login() {
+  clearAuthError();
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!email || !password) return showAuthError('Please fill in all fields.');
+
+  console.log('Attempting login to:', `${API}/auth/login`);
+
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) return showAuthError(data.error || 'Login failed.');
+    storeSession(data);
+    showApp();
+    await Promise.all([loadDocuments(), loadHistory()]);
+  } catch (e) {
+    console.error('Login request failed:', e);
+    showAuthError('Cannot reach server. Is the backend running?');
+  }
+}
+
+async function register() {
+  clearAuthError();
+  const name     = document.getElementById('regName').value.trim();
+  const email    = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value;
+  if (!name || !email || !password) return showAuthError('Please fill in all fields.');
+
+  try {
+    const res = await fetch(`${API}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) return showAuthError(data.error || 'Registration failed.');
+    storeSession(data);
+    showApp();
+  } catch (e) {
+    console.error('Register request failed:', e);
+    showAuthError('Cannot reach server. Is the backend running?');
+  }
+}
+
+function storeSession(data) {
+  authToken = data.token;
+  currentUser = { id: data.user_id, name: data.name };
+  localStorage.setItem('medrag_token', authToken);
+  localStorage.setItem('medrag_user', JSON.stringify(currentUser));
+}
+
+function showApp() {
+  document.getElementById('authOverlay').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  if (currentUser) {
+    document.getElementById('userNameDisplay').textContent = currentUser.name;
+    document.getElementById('userAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+  }
+}
+
+function logout() {
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem('medrag_token');
+  localStorage.removeItem('medrag_user');
+  clearInterval(pollingTimer);
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('authOverlay').style.display = 'flex';
+}
+
+// Allow Enter in login fields
+document.getElementById('loginPassword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+// ── API Helper ─────────────────────────────────────────────────────────────────
+async function apiCall(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  if (!(options.body instanceof FormData) && options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(`${API}${path}`, { ...options, headers });
+  if (res.status === 401) { logout(); throw new Error('Session expired.'); }
+  return res;
+}
+
+// ── Documents ──────────────────────────────────────────────────────────────────
+async function loadDocuments() {
+  try {
+    const res = await apiCall('/documents');
+    if (!res.ok) return;
+    documents = await res.json();
+    renderDocSelector();
+    renderDocGrid();
+  } catch (e) {}
+}
+
+function renderDocSelector() {
+  const sel = document.getElementById('docSelect');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— Select document —</option>';
+  documents.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.doc_id;
+    opt.textContent = `${d.filename}`;
+    sel.appendChild(opt);
+  });
+  if (prev && documents.find(d => d.doc_id === prev)) {
+    sel.value = prev;
+    onDocChange();
+  }
+}
+
+function renderDocGrid() {
+    const grid = document.getElementById('docGrid');
+    if (documents.length === 0) {
+        grid.innerHTML = '<p style="color:var(--text-secondary)">No documents uploaded yet.</p>';
+        return;
+    }
+    grid.innerHTML = '';
+    documents.forEach(d => {
+        const isReady = d.status === 'READY';
+        const statusClass = d.status.toLowerCase();
+        
+        const card = document.createElement('div');
+        card.className = 'doc-card';
+        card.innerHTML = `
+            <div class="doc-header">
+                <h3 class="doc-name" title="${d.filename}">${d.filename.length > 25 ? d.filename.substring(0, 25) + '...' : d.filename}</h3>
+                <span class="doc-status ${statusClass}">${d.status}</span>
+            </div>
+            <div class="doc-meta">
+                <span class="doc-tag">Clinical PDF</span>
+                <span class="doc-pages">${d.page_count || 0} Pages</span>
+            </div>
+            <div class="doc-topics">
+                <strong>Uploaded:</strong> ${new Date(d.created_at).toLocaleDateString()}
+            </div>
+            <button class="btn btn-primary outline" ${!isReady ? 'disabled' : ''} onclick="queryDoc('${d.doc_id}')">
+                ${isReady ? 'Query Document' : 'Processing...'}
+            </button>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+function queryDoc(docId) {
+    document.querySelector('[data-target="view-ask"]').click();
+    document.getElementById('docSelect').value = docId;
+    onDocChange();
+}
+
+function onDocChange() {
+  const docId = document.getElementById('docSelect').value;
+  selectedDoc = documents.find(d => d.doc_id === docId) || null;
+  
+  const actions = document.getElementById('docActions');
+  const badge = document.getElementById('docStatusBadge');
+  const input = document.getElementById('clinicalQuery');
+  const askBtn = document.getElementById('askBtn');
+  
+  if (selectedDoc) {
+      actions.style.display = 'flex';
+      badge.textContent = selectedDoc.status;
+      badge.className = `doc-status-badge badge-${selectedDoc.status.toLowerCase()}`;
+      
+      const ready = selectedDoc.status === 'READY';
+      input.disabled = !ready;
+      askBtn.disabled = !ready;
+      input.placeholder = ready ? "Ask a clinical question based on the document..." : "Document is processing...";
+      
+      if (selectedDoc.status === 'PROCESSING') {
+          startStatusPolling(docId);
+      } else {
+          clearInterval(pollingTimer);
+      }
+  } else {
+      actions.style.display = 'none';
+      input.disabled = true;
+      askBtn.disabled = true;
+      input.placeholder = "Select a document to begin...";
+      clearInterval(pollingTimer);
+  }
+  
+  // Clear answer card
+  document.getElementById('answerCard').classList.add('hidden');
+  document.getElementById('clinicalQuery').value = '';
+}
+
+function startStatusPolling(docId) {
+  clearInterval(pollingTimer);
+  pollingTimer = setInterval(async () => {
+    try {
+      const res = await apiCall(`/status/${docId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const idx = documents.findIndex(d => d.doc_id === docId);
+      if (idx !== -1) {
+        documents[idx].status = data.status;
+        documents[idx].page_count = data.page_count;
+      }
+      renderDocSelector();
+      renderDocGrid();
+      document.getElementById('docSelect').value = docId;
+      onDocChange();
+
+      if (data.status === 'READY') {
+        clearInterval(pollingTimer);
+        toast('Document is ready for queries.', 'success');
+      } else if (data.status === 'FAILED') {
+        clearInterval(pollingTimer);
+        toast(`Processing failed: ${data.error || 'Unknown error'}`, 'error');
+      }
+    } catch (e) {}
+  }, 3000);
+}
+
+// ── CRUD ───────────────────────────────────────────────────────────────────────
+async function renameDocument() {
+  if (!selectedDoc) return;
+  const newName = prompt('Enter new document name:', selectedDoc.filename);
+  if (!newName || newName.trim() === '' || newName === selectedDoc.filename) return;
+
+  try {
+    const res = await apiCall(`/documents/${selectedDoc.doc_id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ filename: newName }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      return toast(data.error || 'Failed to rename document.', 'error');
+    }
+    const data = await res.json();
+    selectedDoc.filename = data.filename;
+    renderDocSelector();
+    renderDocGrid();
+    toast('Document renamed.', 'success');
+  } catch (e) {
+    toast('Failed to reach server.', 'error');
+  }
+}
+
+async function deleteDocument() {
+  if (!selectedDoc) return;
+  if (!confirm(`Are you sure you want to delete "${selectedDoc.filename}"? This will also delete all associated chat history.`)) return;
+
+  try {
+    const res = await apiCall(`/documents/${selectedDoc.doc_id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      return toast(data.error || 'Failed to delete document.', 'error');
+    }
+    documents = documents.filter(d => d.doc_id !== selectedDoc.doc_id);
+    selectedDoc = null;
+    document.getElementById('docSelect').value = '';
+    onDocChange();
+    renderDocSelector();
+    renderDocGrid();
+    loadHistory(); // refresh history to remove deleted chats
+    toast('Document deleted.', 'success');
+  } catch (e) {
+    toast('Failed to reach server.', 'error');
+  }
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────────
+function onFileSelected(e) {
+  const file = e.target.files[0];
+  if (file) uploadFile(file);
+}
+
+async function uploadFile(file) {
+  if (!file.name.endsWith('.pdf')) return toast('Only PDF files are accepted.', 'error');
+  if (file.size > 50 * 1024 * 1024) return toast('File exceeds 50MB limit.', 'error');
+
+  const btn = document.getElementById('uploadBtn');
+  const statusEl = document.getElementById('uploadStatusText');
+  
+  btn.style.display = 'none';
+  statusEl.style.display = 'flex';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res = await apiCall('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast(`Upload failed: ${data.error}`, 'error');
+    } else {
+      toast('Document uploaded successfully. Processing...', 'success');
+      documents.unshift({ doc_id: data.doc_id, filename: data.filename, status: 'PROCESSING', created_at: new Date().toISOString() });
+      renderDocSelector();
+      renderDocGrid();
+      document.getElementById('docSelect').value = data.doc_id;
+      onDocChange();
+    }
+  } catch (e) {
+    toast('Upload failed. Check server connection.', 'error');
+  } finally {
+    btn.style.display = 'block';
+    statusEl.style.display = 'none';
+    document.getElementById('fileInput').value = '';
+  }
+}
+
+// ── Ask AI ─────────────────────────────────────────────────────────────────────
+function setQuery(text) {
+    const input = document.getElementById('clinicalQuery');
+    input.value = text;
+    input.focus();
+}
+
+function onQueryKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    submitQuery();
+  }
+}
+
+async function submitQuery() {
+    const input = document.getElementById('clinicalQuery');
+    const query = input.value.trim();
+    if (!query || !selectedDoc || selectedDoc.status !== 'READY') return;
+
+    document.getElementById('answerCard').classList.add('hidden');
+    document.getElementById('loadingState').classList.remove('hidden');
+    document.getElementById('askBtn').disabled = true;
+    input.disabled = true;
+
+    try {
+        const res = await apiCall('/query', {
+            method: 'POST',
+            body: JSON.stringify({ doc_id: selectedDoc.doc_id, query }),
+        });
+        const data = await res.json();
+        
+        document.getElementById('loadingState').classList.add('hidden');
+        
+        if (!res.ok) {
+            toast(`Error: ${data.error}`, 'error');
+        } else {
+            document.getElementById('answerCard').classList.remove('hidden');
+            renderAnswerCard(query, data);
+            loadHistory(); // refresh history
+        }
+    } catch (e) {
+        document.getElementById('loadingState').classList.add('hidden');
+        toast('Network error. Could not reach the server.', 'error');
+    } finally {
+        document.getElementById('askBtn').disabled = false;
+        input.disabled = false;
+        input.value = '';
+    }
+}
+
+function renderAnswerCard(query, data) {
+    document.getElementById('answerQueryTitle').textContent = `Q: ${query}`;
+    
+    // Format answer text
+    const isNotInDoc = data.answer.startsWith('NOT_IN_DOCUMENT:');
+    const displayText = isNotInDoc ? data.answer.replace('NOT_IN_DOCUMENT:', '').trim() : data.answer;
+    document.getElementById('answerText').innerHTML = escapeHtml(displayText).replace(/\n/g, '<br>');
+    
+    // Confidence Badge
+    const badge = document.getElementById('confidenceBadge');
+    if (isNotInDoc) {
+        badge.className = 'confidence-badge low';
+        badge.textContent = 'Not in Document';
+    } else {
+        const pct = Math.round(data.confidence * 100);
+        if (pct >= 80) {
+            badge.className = 'confidence-badge high';
+            badge.textContent = `High Confidence (${pct}%)`;
+        } else if (pct >= 50) {
+            badge.className = 'confidence-badge medium';
+            badge.textContent = `Medium Confidence (${pct}%)`;
+        } else {
+            badge.className = 'confidence-badge low';
+            badge.textContent = `Low Confidence (${pct}%)`;
+        }
+    }
+    
+    // Sources
+    const sourceList = document.getElementById('sourceList');
+    sourceList.innerHTML = '';
+    if (data.source_chunks && data.source_chunks.length > 0) {
+        data.source_chunks.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'source-item';
+            item.innerHTML = `<strong>Page ${c.page}</strong> (score: ${c.score}): "${escapeHtml(c.text.slice(0, 250))}${c.text.length > 250 ? '...' : ''}"`;
+            sourceList.appendChild(item);
+        });
+    } else {
+        sourceList.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;">No direct sources found.</div>';
+    }
+}
+
+// ── History & Analytics ────────────────────────────────────────────────────────
+async function loadHistory() {
+  if (!currentUser) return;
+  try {
+    const res = await apiCall(`/chat-history/${currentUser.id}`);
+    if (!res.ok) return;
+    chatHistory = await res.json();
+    renderHistoryView();
+    renderAnalytics();
+  } catch (e) {}
+}
+
+function renderHistoryView() {
+    const list = document.getElementById('historyListView');
+    if (!chatHistory || chatHistory.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-secondary)">No query history available.</p>';
+        return;
+    }
+    list.innerHTML = '';
+    chatHistory.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'history-card';
+        card.innerHTML = `
+            <div class="history-title">${escapeHtml(s.title)}</div>
+            <div class="history-meta">Document: ${escapeHtml(s.doc_name)}</div>
+        `;
+        card.addEventListener('click', () => loadSessionData(s));
+        list.appendChild(card);
+    });
+}
+
+async function loadSessionData(session) {
+    // Switch to Ask AI view and select doc
+    document.querySelector('[data-target="view-ask"]').click();
+    const doc = documents.find(d => d.doc_id === session.doc_id);
+    if (doc) {
+        document.getElementById('docSelect').value = session.doc_id;
+        onDocChange();
+    }
+    
+    document.getElementById('loadingState').classList.remove('hidden');
+    document.getElementById('answerCard').classList.add('hidden');
+    
+    try {
+        const res = await apiCall(`/chat-messages/${session.session_id}`);
+        if (!res.ok) return;
+        const messages = await res.json();
+        
+        // Find the user query and assistant answer
+        const userMsg = messages.find(m => m.role === 'user');
+        const asstMsg = messages.find(m => m.role === 'assistant');
+        
+        if (userMsg && asstMsg) {
+            renderAnswerCard(userMsg.content, {
+                answer: asstMsg.content,
+                confidence: asstMsg.confidence,
+                source_chunks: asstMsg.source_chunks
+            });
+            document.getElementById('answerCard').classList.remove('hidden');
+        }
+    } catch (e) {
+        toast('Failed to load history.', 'error');
+    } finally {
+        document.getElementById('loadingState').classList.add('hidden');
+    }
+}
+
+function renderAnalytics() {
+    // Generate basic analytics from available data
+    const totalDocs = documents.length;
+    const totalQueries = chatHistory.length;
+    const readyDocs = documents.filter(d => d.status === 'READY').length;
+    
+    const grid = document.getElementById('analyticsGrid');
+    grid.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${totalQueries}</div>
+            <div class="stat-label">Total Clinical Queries</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${totalDocs}</div>
+            <div class="stat-label">Documents Uploaded</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${readyDocs}</div>
+            <div class="stat-label">Ready for Search</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">100%</div>
+            <div class="stat-label">Data Privacy (Local)</div>
+        </div>
+    `;
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+let toastTimer = null;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show${type ? ' ' + type : ''}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+}
+</script>
+</body>
+</html>

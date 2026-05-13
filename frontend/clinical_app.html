@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedRAG - Clinical Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/clinical.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">Med<span>RAG</span></div>
+            </div>
+            <div class="user-profile">
+                <div class="avatar">JS</div>
+                <div class="user-info">
+                    <div class="user-name">Dr. Jane Smith</div>
+                    <div class="user-specialty">Cardiology</div>
+                </div>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-target="view-ask">Ask AI</a>
+                <a href="#" class="nav-item" data-target="view-history">Query History</a>
+                <a href="#" class="nav-item" data-target="view-documents">Documents</a>
+                <a href="#" class="nav-item" data-target="view-analytics">Analytics</a>
+            </nav>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+            <!-- TOP BAR -->
+            <header class="top-bar">
+                <div class="dropdowns">
+                    <select class="clinical-select" id="docSelect">
+                        <option value="all">All Documents</option>
+                        <option value="doc1">Patient_History_Smith.pdf</option>
+                    </select>
+                    <select class="clinical-select" id="specialtySelect">
+                        <option value="all">All Specialties</option>
+                        <option value="cardio">Cardiology</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary" onclick="uploadDocument()">+ Upload PDF</button>
+            </header>
+
+            <!-- VIEWS -->
+            <div id="view-ask" class="view active">
+                <div class="query-container">
+                    <h1 class="page-title">Clinical AI Assistant</h1>
+                    
+                    <div class="query-box">
+                        <textarea id="clinicalQuery" placeholder="Ask a clinical question..."></textarea>
+                        <div class="query-footer">
+                            <button class="btn btn-primary" id="askBtn" onclick="submitQuery()">Ask AI</button>
+                        </div>
+                    </div>
+                    
+                    <div class="suggestions">
+                        <span class="suggestion-chip" onclick="setQuery('Hypertension treatment')">Hypertension treatment</span>
+                        <span class="suggestion-chip" onclick="setQuery('Diabetes diagnosis')">Diabetes diagnosis</span>
+                        <span class="suggestion-chip" onclick="setQuery('Arrhythmia symptoms')">Arrhythmia symptoms</span>
+                    </div>
+
+                    <div id="loadingState" class="hidden">
+                        <div class="spinner"></div>
+                        <p>Processing query...</p>
+                    </div>
+
+                    <div id="answerCard" class="answer-card hidden">
+                        <div class="answer-header">
+                            <h3>Clinical Response</h3>
+                            <span class="confidence-badge high" id="confidenceBadge">High Confidence</span>
+                        </div>
+                        <div class="answer-body" id="answerText">
+                            <!-- Answer text inserted here -->
+                        </div>
+                        <div class="answer-sources">
+                            <h4>Sources</h4>
+                            <div class="source-list" id="sourceList">
+                                <!-- Sources inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-documents" class="view hidden">
+                <h1 class="page-title">Clinical Documents</h1>
+                <div id="docGrid" class="document-grid">
+                    <!-- Doc cards -->
+                    <div class="doc-card">
+                        <div class="doc-header">
+                            <h3 class="doc-name">Ecosprin_Guidelines.pdf</h3>
+                            <span class="doc-status ready">READY</span>
+                        </div>
+                        <div class="doc-meta">
+                            <span class="doc-tag">Cardiology</span>
+                            <span class="doc-pages">12 Pages</span>
+                        </div>
+                        <div class="doc-topics">
+                            <strong>Key Topics:</strong> Arrhythmia, CAD, Medications
+                        </div>
+                        <button class="btn btn-primary outline" onclick="queryDoc('doc1')">Query Document</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-analytics" class="view hidden">
+                <h1 class="page-title">Clinical Analytics</h1>
+                <div class="analytics-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">1,204</div>
+                        <div class="stat-label">Total Queries Answered</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">94%</div>
+                        <div class="stat-label">High Confidence Rate</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">Top Topic</div>
+                        <div class="stat-label">Arrhythmia Management</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">12</div>
+                        <div class="stat-label">Flagged Answers (Review)</div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+    <script src="js/clinical.js"></script>
+</body>
+</html>
