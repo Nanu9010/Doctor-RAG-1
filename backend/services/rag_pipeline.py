@@ -27,16 +27,26 @@ from services.vector_store import query_document, RetrievedChunk
 
 logger = logging.getLogger(__name__)
 
-_OPENAI_API_KEY   = os.getenv("GEMINI_API_KEY", "")
-_OPENAI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-_TOP_K            = int(os.getenv("TOP_K_RESULTS", "5"))
-_MIN_CONFIDENCE   = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.35"))
+_OPENAI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
+_OPENAI_MODEL      = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+_TOP_K             = int(os.getenv("TOP_K_RESULTS", "5"))
+_MIN_CONFIDENCE    = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.35"))
 _MAX_CONTEXT_CHARS = 6000
 
-openai_client = openai.OpenAI(
-    api_key=_OPENAI_API_KEY,
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-)
+# Lazy client — created on first request to avoid startup crash if key is missing
+_openai_client = None
+
+def _get_openai_client():
+    global _openai_client
+    if _openai_client is None:
+        key = os.getenv("GEMINI_API_KEY", "")
+        if not key:
+            raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+        _openai_client = openai.OpenAI(
+            api_key=key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
+    return _openai_client
 
 
 # ── Types ─────────────────────────────────────────────────────────────────────
@@ -160,7 +170,7 @@ def run_rag_query(
 
     # 5. LLM call
     try:
-        completion = openai_client.chat.completions.create(
+        completion = _get_openai_client().chat.completions.create(
             model=_OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
