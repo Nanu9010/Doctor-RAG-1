@@ -1,64 +1,88 @@
 """
 services/embedding_service.py
 
-Singleton embedding model — loaded once at startup to avoid
-reloading the 80MB+ model on each request.
+Production embedding using Google Gemini text-embedding-004 API.
+Replaces sentence-transformers to eliminate the 800MB+ PyTorch dependency
+which exceeded Vercel's 500MB Lambda bundle limit.
 
-Thread-safe: sentence-transformers encode() releases the GIL
-so this is safe for concurrent Flask workers.
+Model: text-embedding-004 (768 dims default, configurable via EMBEDDING_DIMENSION)
+Task types:
+  - embed_texts()  → "retrieval_document" (for indexing chunks)
+  - embed_query()  → "retrieval_query"    (for query-time search)
 """
 import os
 import logging
-import threading
-from typing import TYPE_CHECKING
-
-from sentence_transformers import SentenceTransformer
-
-if TYPE_CHECKING:
-    import numpy as np
+from typing import List
 
 logger = logging.getLogger(__name__)
 
-_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-_BATCH_SIZE  = 64
+_GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
+_EMBEDDING_MODEL   = os.getenv("GEMINI_EMBEDDING_MODEL", "models/text-embedding-004")
+_OUTPUT_DIM        = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 
-_model: SentenceTransformer | None = None
-_model_lock = threading.Lock()
-
-
-def _get_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
-        with _model_lock:
-            if _model is None:  # double-checked locking
-                logger.info("Loading embedding model: %s", _MODEL_NAME)
-                _model = SentenceTransformer(_MODEL_NAME)
-                logger.info("Embedding model loaded.")
-    return _model
+# Lazy import — only load if embedding is needed (faster cold starts)
+_genai = None
 
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
+def _get_genai():
+    global _genai
+    if _genai is None:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=_GEMINI_API_KEY)
+            _genai = genai
+            logger.info("Gemini embedding client initialized (model: %s, dim: %d)",
+                        _EMBEDDING_MODEL, _OUTPUT_DIM)
+        except ImportError:
+            raise RuntimeError(
+                "google-generativeai not installed. Run: pip install google-generativeai"
+            )
+    return _genai
+
+
+def embed_texts(texts: List[str]) -> List[List[float]]:
     """
-    Embed a list of strings.
-    Returns list of float vectors.
+    Embed a batch of document chunks for indexing.
+    Returns list of float vectors, one per input text.
     """
     if not texts:
         return []
 
-    model = _get_model()
-    vectors = model.encode(
-        texts,
-        batch_size=_BATCH_SIZE,
-        show_progress_bar=False,
-        normalize_embeddings=True,  # cosine similarity becomes dot product
-        convert_to_numpy=True,
-    )
-    return [v.tolist() for v in vectors]
+    genai = _get_genai()
+    results = []
+
+    # Gemini embed_content handles one string at a time efficiently;
+    # batch in groups of 20 to stay within API limits
+    batch_size = 20
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        for text in batch:
+            resp = genai.embed_content(
+                model=_EMBEDDING_MODEL,
+                content=text.strip(),
+                task_type="retrieval_document",
+                output_dimensionality=_OUTPUT_DIM,
+            )
+            results.append(resp["embedding"])
+
+    logger.debug("Embedded %d texts via Gemini", len(results))
+    return results
 
 
-def embed_query(query: str) -> list[float]:
-    """Single-query embedding (used at query time)."""
-    result = embed_texts([query.strip()])
-    if not result:
+def embed_query(query: str) -> List[float]:
+    """
+    Embed a single user query for similarity search.
+    Uses 'retrieval_query' task type (asymmetric retrieval).
+    """
+    query = query.strip()
+    if not query:
         raise ValueError("Empty query cannot be embedded.")
-    return result[0]
+
+    genai = _get_genai()
+    resp = genai.embed_content(
+        model=_EMBEDDING_MODEL,
+        content=query,
+        task_type="retrieval_query",
+        output_dimensionality=_OUTPUT_DIM,
+    )
+    return resp["embedding"]

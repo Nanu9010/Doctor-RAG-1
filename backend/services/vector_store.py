@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 _PINECONE_API_KEY   = os.getenv("PINECONE_API_KEY", "")
 _PINECONE_ENV       = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
 _INDEX_NAME         = os.getenv("PINECONE_INDEX_NAME", "medrag-index")
-_EMBEDDING_DIM      = int(os.getenv("EMBEDDING_DIMENSION", "384"))
+_EMBEDDING_DIM      = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 _UPSERT_BATCH_SIZE  = 100
 
 _pc    = None

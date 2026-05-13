@@ -17,8 +17,16 @@ from dataclasses import dataclass
 from typing import Generator
 
 import fitz                  # PyMuPDF
-import pytesseract
-from PIL import Image
+
+# pytesseract and Pillow are optional (not available on Vercel serverless)
+# OCR is skipped gracefully when these are absent; digital PDFs still work fine.
+try:
+    import pytesseract
+    from PIL import Image
+    _OCR_AVAILABLE = True
+except ImportError:
+    _OCR_AVAILABLE = False
+
 import io
 
 logger = logging.getLogger(__name__)
@@ -53,7 +61,10 @@ def _extract_page_text_native(page: fitz.Page) -> str:
 
 
 def _extract_page_text_ocr(page: fitz.Page) -> str:
-    """Render page to image and OCR it."""
+    """Render page to image and OCR it. Returns '' if OCR deps not available."""
+    if not _OCR_AVAILABLE:
+        logger.warning("OCR skipped — pytesseract/Pillow not installed (serverless environment)")
+        return ""
     mat = fitz.Matrix(OCR_DPI / 72, OCR_DPI / 72)
     pix = page.get_pixmap(matrix=mat, alpha=False)
     img = Image.open(io.BytesIO(pix.tobytes("png")))
