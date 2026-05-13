@@ -5,7 +5,7 @@ Production embedding using Google Gemini text-embedding-004 API.
 Replaces sentence-transformers to eliminate the 800MB+ PyTorch dependency
 which exceeded Vercel's 500MB Lambda bundle limit.
 
-Model: text-embedding-004 (768 dims default, configurable via EMBEDDING_DIMENSION)
+Model: gemini-embedding-2 (768 dims default, configurable via EMBEDDING_DIMENSION)
 Task types:
   - embed_texts()  → "retrieval_document" (for indexing chunks)
   - embed_query()  → "retrieval_query"    (for query-time search)
@@ -17,7 +17,7 @@ from typing import List
 logger = logging.getLogger(__name__)
 
 _GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
-_EMBEDDING_MODEL   = os.getenv("GEMINI_EMBEDDING_MODEL", "models/text-embedding-004")
+_EMBEDDING_MODEL   = os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-2")
 _OUTPUT_DIM        = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 
 # Lazy import — only load if embedding is needed (faster cold starts)

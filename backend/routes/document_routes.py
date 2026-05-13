@@ -132,6 +132,33 @@ def list_documents():
     ]), 200
 
 
+@document_bp.route("/documents/<doc_id>", methods=["GET"])
+@require_auth
+def get_document_file(doc_id: str):
+    try:
+        validate_uuid(doc_id, "doc_id")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    with get_db() as (conn, cursor):
+        cursor.execute(
+            "SELECT original_name, file_path FROM documents WHERE id = %s AND user_id = %s",
+            (doc_id, g.user_id)
+        )
+        doc = cursor.fetchone()
+
+    if not doc or not os.path.exists(doc["file_path"]):
+        return jsonify({"error": "Document not found."}), 404
+
+    from flask import send_file
+    return send_file(
+        doc["file_path"],
+        as_attachment=False,
+        download_name=doc["original_name"],
+        mimetype="application/pdf"
+    )
+
+
 @document_bp.route("/documents/<doc_id>", methods=["DELETE"])
 @require_auth
 def delete_document(doc_id: str):

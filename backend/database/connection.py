@@ -15,8 +15,6 @@ _POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
 
 
 def _create_connection() -> pymysql.connections.Connection:
-    ssl_ca = os.getenv("DB_SSL_CA", "")          # for PlanetScale/Aiven
-    ssl    = {"ca": ssl_ca} if ssl_ca else None
     return pymysql.connect(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "3306")),
@@ -26,8 +24,7 @@ def _create_connection() -> pymysql.connections.Connection:
         charset="utf8mb4",
         cursorclass=DictCursor,
         autocommit=False,
-        connect_timeout=5,
-        ssl=ssl if ssl else None,
+        connect_timeout=10,
     )
 
 
